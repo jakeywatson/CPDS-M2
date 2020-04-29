@@ -17,7 +17,7 @@ double relax_jacobi (double *u, double *utmp, unsigned sizex, unsigned sizey)
     nby = NB;
     by = sizey/nby;
 
-    #pragma for
+#pragma omp parallel for collapse(2) private(diff) reduction(+: sum)
     for (int ii=0; ii<nbx; ii++)
         for (int jj=0; jj<nby; jj++)
             for (int i=1+ii*bx; i<=min((ii+1)*bx, sizex-2); i++)
@@ -26,7 +26,7 @@ double relax_jacobi (double *u, double *utmp, unsigned sizex, unsigned sizey)
 					     u[ i*sizey     + (j+1) ]+  // right
 				             u[ (i-1)*sizey + j     ]+  // top
 				             u[ (i+1)*sizey + j     ]); // bottom
-	            diff = utmp[i*sizey+j] - u[i*sizey + j]; //pragma atomic
+	            diff = utmp[i*sizey+j] - u[i*sizey + j];
 	            sum += diff * diff; // reduction
 	        }
 
@@ -47,9 +47,9 @@ double relax_redblack (double *u, unsigned sizex, unsigned sizey)
     nby = NB;
     by = sizey/nby;
     // Computing "Red" blocks
+#pragma omp parallel for collapse(2) private(diff) reduction(+: sum)
     for (int ii=0; ii<nbx; ii++) {
-        lsw = ii%2;
-        for (int jj=lsw; jj<nby; jj=jj+2)
+        for (int jj=ii%2; jj<nby; jj=jj+2)
             for (int i=1+ii*bx; i<=min((ii+1)*bx, sizex-2); i++)
                 for (int j=1+jj*by; j<=min((jj+1)*by, sizey-2); j++) {
 	            unew= 0.25 * (    u[ i*sizey	+ (j-1) ]+  // left
@@ -63,9 +63,9 @@ double relax_redblack (double *u, unsigned sizex, unsigned sizey)
     }
 
     // Computing "Black" blocks
+#pragma omp parallel for collapse(2) private(diff) reduction(+: sum)
     for (int ii=0; ii<nbx; ii++) {
-        lsw = (ii+1)%2;
-        for (int jj=lsw; jj<nby; jj=jj+2)
+        for (int jj=(ii+1)%2; jj<nby; jj=jj+2)
             for (int i=1+ii*bx; i<=min((ii+1)*bx, sizex-2); i++)
                 for (int j=1+jj*by; j<=min((jj+1)*by, sizey-2); j++) {
 	            unew= 0.25 * (    u[ i*sizey	+ (j-1) ]+  // left
