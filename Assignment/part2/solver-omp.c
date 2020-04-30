@@ -47,7 +47,7 @@ double relax_redblack (double *u, unsigned sizex, unsigned sizey)
     nby = NB;
     by = sizey/nby;
     // Computing "Red" blocks
-#pragma omp parallel for collapse(2) private(diff) reduction(+: sum)
+#pragma omp parallel for collapse(2) private(diff,unew) reduction(+: sum)
     for (int ii=0; ii<nbx; ii++) {
         for (int jj=ii%2; jj<nby; jj=jj+2)
             for (int i=1+ii*bx; i<=min((ii+1)*bx, sizex-2); i++)
@@ -63,7 +63,7 @@ double relax_redblack (double *u, unsigned sizex, unsigned sizey)
     }
 
     // Computing "Black" blocks
-#pragma omp parallel for collapse(2) private(diff) reduction(+: sum)
+#pragma omp parallel for collapse(2) private(diff,unew) reduction(+: sum)
     for (int ii=0; ii<nbx; ii++) {
         for (int jj=(ii+1)%2; jj<nby; jj=jj+2)
             for (int i=1+ii*bx; i<=min((ii+1)*bx, sizex-2); i++)
