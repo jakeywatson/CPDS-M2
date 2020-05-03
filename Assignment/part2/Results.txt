@@ -1,0 +1,3 @@
+0 - original: 3.6s, 15901 iterations; best: 6 threads, 2.5s
+1 - original: 5.9s, 12552 iterations; best: 4 threads, 1.5s
+2 - original: 5.8s, 12552 iterations; best: 3 threads, 3.8s
