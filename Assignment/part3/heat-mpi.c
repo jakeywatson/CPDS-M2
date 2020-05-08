@@ -100,8 +100,15 @@ int main( int argc, char *argv[] )
 					MPI_Send(&param.maxiter, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
 					MPI_Send(&param.resolution, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
 					MPI_Send(&param.algorithm, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-					MPI_Send(&param.u[i * mp * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-					MPI_Send(&param.uhelp[i * mp * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+					printf("Sending rows %d to %d to worker %d\n", i * (mp-1), i * (mp-1) + mp, i);
+					if(i == numprocs-1){
+						MPI_Send(&param.u[i * (mp-1) * np], (np%numprocs)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+						MPI_Send(&param.uhelp[i * (mp-1) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);						
+					}
+					else{
+						MPI_Send(&param.u[i * (mp-1) * np], (np%numprocs)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+						MPI_Send(&param.uhelp[i * (mp-1) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+					}
 			}
 		}
 
@@ -115,8 +122,8 @@ int main( int argc, char *argv[] )
 						for (int j=0; j<np; j++)
 						param.u[ i*np+j ] = param.uhelp[ i*np+j ];
 				
-				MPI_Sendrecv(&u[np*(mp-2)], np, MPI_DOUBLE, 1, 0,
-					&u[np*(mp-1)], np, MPI_DOUBLE, 1, 1, MPI_COMM_WORLD, &status);
+				MPI_Sendrecv(&param.u[np*(mp-2)], np, MPI_DOUBLE, 1, 0,
+					&param.u[np*(mp-1)], np, MPI_DOUBLE, 1, 1, MPI_COMM_WORLD, &status);
 					
 				break;
 			case 1: // RED-BLACK
@@ -196,26 +203,25 @@ int main( int argc, char *argv[] )
 		}
 		
 		// fill initial values for matrix with values received from master
-		MPI_Recv(&u[0], (rows+2)*(columns+2), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
-		MPI_Recv(&uhelp[0], (rows+2)*(columns+2), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
+		MPI_Recv(u, (mp)*(np), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
+		MPI_Recv(uhelp, (mp)*(np), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
 
 		iter = 0;
 		while(1) {
 		switch( algorithm ) {
 	    case 0: // JACOBI
-			residual = relax_jacobi(&u, uhelp, mp, np);
+			residual = relax_jacobi(u, uhelp, mp, np);
 		    // Copy uhelp into u
 		    for (int i=0; i<mp; i++)
     		        for (int j=0; j<np; j++)
 						u[ i*np+j ] = uhelp[ i*np+j ];
 			
 			if (myid != numprocs-1)
-				MPI_Sendrecv(&u[np*(mp-2)], np, MPI_DOUBLE, myid+1, 0,
-					&u[np*(mp-1)], np, MPI_DOUBLE, myid+1, 0, MPI_COMM_WORLD, &status);
-			MPI_Sendrecv(&u[np], np, MPI_DOUBLE, myid-1, 1,
-				u, np, MPI_DOUBLE, myid-1, 1, MPI_COMM_WORLD, &status);
-			else 
-			
+				MPI_Send(&u[np*(mp-2)], np, MPI_DOUBLE, myid+1, 0, MPI_COMM_WORLD);
+			MPI_Recv(u, np, MPI_DOUBLE, myid-1, 1, MPI_COMM_WORLD, &status);
+			MPI_Send(&u[np], np, MPI_DOUBLE, myid-1, 1, MPI_COMM_WORLD);	
+			if (myid != numprocs-1)
+				MPI_Recv(&u[np*(mp-1)], np, MPI_DOUBLE, myid+1, 0, MPI_COMM_WORLD, &status);
 		    break;
 	    case 1: // RED-BLACK
 		    residual = relax_redblack(u, np, np);
