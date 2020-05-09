@@ -101,14 +101,14 @@ int main( int argc, char *argv[] )
 					MPI_Send(&param.resolution, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
 					MPI_Send(&param.algorithm, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
 					if(i == numprocs-1){
-						printf("Sending rows %d to %d to worker %d\n", i * (mp-1), i * (mp-1) + (np%numprocs), i);
-						MPI_Send(&param.u[i * (mp-1) * np], (np%numprocs)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-						MPI_Send(&param.uhelp[i * (mp-1) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);						
+						printf("Sending rows %d to %d to worker %d\n", i * (mp-2), i * (mp-2) + (mp + (np-2)%numprocs), i);
+						MPI_Send(&param.u[i * (mp-2) * np], (mp + (np-2)%numprocs)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+						MPI_Send(&param.uhelp[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);						
 					}
 					else{
 						printf("Sending rows %d to %d to worker %d\n", i * (mp-1), i * (mp-1) + mp, i);
-						MPI_Send(&param.u[i * (mp-1) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-						MPI_Send(&param.uhelp[i * (mp-1) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+						MPI_Send(&param.u[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+						MPI_Send(&param.uhelp[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
 					}
 			}
 		}
@@ -193,6 +193,17 @@ int main( int argc, char *argv[] )
 		rows = columns;
 		np = columns + 2;
 		int mp = (np-2)/numprocs + 2;
+
+		int last_process = myid != numprocs-1;
+		
+		
+		if (last_process)
+		{
+			mp = mp + (np-2)%numprocs;
+		}
+
+		
+		
 		
 		// allocate memory for worker
 		double * u = calloc( sizeof(double),(mp)*(np) );
@@ -217,13 +228,13 @@ int main( int argc, char *argv[] )
     		        for (int j=0; j<np; j++)
 						u[ i*np+j ] = uhelp[ i*np+j ];
 			
-			if (myid != numprocs-1)
+			if (last_process)
 			{
 				MPI_Send(&u[np*(mp-2)], np, MPI_DOUBLE, myid+1, 0, MPI_COMM_WORLD);
 			}
 			MPI_Recv(u, np, MPI_DOUBLE, myid-1, 0, MPI_COMM_WORLD, &status);
 			MPI_Send(&u[np], np, MPI_DOUBLE, myid-1, 0, MPI_COMM_WORLD);	
-			if (myid != numprocs-1)
+			if (last_process)
 			{
 				MPI_Recv(&u[np*(mp-1)], np, MPI_DOUBLE, myid+1, 0, MPI_COMM_WORLD, &status);
 			}
