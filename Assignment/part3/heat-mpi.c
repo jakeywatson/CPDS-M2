@@ -106,7 +106,7 @@ int main( int argc, char *argv[] )
 						MPI_Send(&param.uhelp[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);						
 					}
 					else{
-						printf("Sending rows %d to %d to worker %d\n", i * (mp-1), i * (mp-1) + mp, i);
+						printf("Sending rows %d to %d to worker %d\n", i * (mp-2), i * (mp-2) + mp, i);
 						MPI_Send(&param.u[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
 						MPI_Send(&param.uhelp[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
 					}
