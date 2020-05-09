@@ -100,13 +100,14 @@ int main( int argc, char *argv[] )
 					MPI_Send(&param.maxiter, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
 					MPI_Send(&param.resolution, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
 					MPI_Send(&param.algorithm, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-					printf("Sending rows %d to %d to worker %d\n", i * (mp-1), i * (mp-1) + mp, i);
 					if(i == numprocs-1){
+						printf("Sending rows %d to %d to worker %d\n", i * (mp-1), i * (mp-1) + (np%numprocs), i);
 						MPI_Send(&param.u[i * (mp-1) * np], (np%numprocs)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
 						MPI_Send(&param.uhelp[i * (mp-1) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);						
 					}
 					else{
-						MPI_Send(&param.u[i * (mp-1) * np], (np%numprocs)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+						printf("Sending rows %d to %d to worker %d\n", i * (mp-1), i * (mp-1) + mp, i);
+						MPI_Send(&param.u[i * (mp-1) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
 						MPI_Send(&param.uhelp[i * (mp-1) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
 					}
 			}
@@ -121,9 +122,9 @@ int main( int argc, char *argv[] )
 				for (int i=0; i<mp; i++)
 						for (int j=0; j<np; j++)
 						param.u[ i*np+j ] = param.uhelp[ i*np+j ];
-				
+					
 				MPI_Sendrecv(&param.u[np*(mp-2)], np, MPI_DOUBLE, 1, 0,
-					&param.u[np*(mp-1)], np, MPI_DOUBLE, 1, 1, MPI_COMM_WORLD, &status);
+					&param.u[np*(mp-1)], np, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD, &status);
 					
 				break;
 			case 1: // RED-BLACK
@@ -217,11 +218,15 @@ int main( int argc, char *argv[] )
 						u[ i*np+j ] = uhelp[ i*np+j ];
 			
 			if (myid != numprocs-1)
+			{
 				MPI_Send(&u[np*(mp-2)], np, MPI_DOUBLE, myid+1, 0, MPI_COMM_WORLD);
-			MPI_Recv(u, np, MPI_DOUBLE, myid-1, 1, MPI_COMM_WORLD, &status);
-			MPI_Send(&u[np], np, MPI_DOUBLE, myid-1, 1, MPI_COMM_WORLD);	
+			}
+			MPI_Recv(u, np, MPI_DOUBLE, myid-1, 0, MPI_COMM_WORLD, &status);
+			MPI_Send(&u[np], np, MPI_DOUBLE, myid-1, 0, MPI_COMM_WORLD);	
 			if (myid != numprocs-1)
+			{
 				MPI_Recv(&u[np*(mp-1)], np, MPI_DOUBLE, myid+1, 0, MPI_COMM_WORLD, &status);
+			}
 		    break;
 	    case 1: // RED-BLACK
 		    residual = relax_redblack(u, np, np);
