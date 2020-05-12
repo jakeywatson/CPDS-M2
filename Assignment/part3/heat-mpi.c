@@ -9,7 +9,7 @@
 
 void usage( char *s )
 {
-    fprintf(stderr, 
+    fprintf(stderr,
 	    "Usage: %s <input file> [result file]\n\n", s);
 }
 
@@ -43,11 +43,11 @@ int main( int argc, char *argv[] )
 		}
 
 		// check input file
-		if( !(infile=fopen(argv[1], "r"))  ) 
+		if( !(infile=fopen(argv[1], "r"))  )
 		{
-		fprintf(stderr, 
+		fprintf(stderr,
 			"\nError: Cannot open \"%s\" for reading.\n\n", argv[1]);
-		  
+
 		usage(argv[0]);
 		return 1;
 		}
@@ -57,8 +57,8 @@ int main( int argc, char *argv[] )
 
 		if( !(resfile=fopen(resfilename, "w")) )
 		{
-		fprintf(stderr, 
-			"\nError: Cannot open \"%s\" for writing.\n\n", 
+		fprintf(stderr,
+			"\nError: Cannot open \"%s\" for writing.\n\n",
 			resfilename);
 		usage(argv[0]);
 		return 1;
@@ -71,15 +71,19 @@ int main( int argc, char *argv[] )
 		usage(argv[0]);
 		return 1;
 		}
+
+    // print parameters
+		printf("MPI Num Procs     : %d\n", numprocs);
 		print_params(&param);
 
+
 		// set the visualization resolution
-		
+
 		param.u     = 0;
 		param.uhelp = 0;
 		param.uvis  = 0;
 		param.visres = param.resolution;
-	   
+
 		if( !initialize(&param) )
 		{
 			fprintf(stderr, "Error in Solver initialization.\n\n");
@@ -89,28 +93,36 @@ int main( int argc, char *argv[] )
 
 		// full size (param.resolution are only the inner points)
 		np = param.resolution + 2;
-		
+
+    // number of rows per process incl ghost rows
+		int mp = ((np-2)/numprocs) + 2;
+
+    // final process?
+    int last_proc = (myid == numprocs - 1);
+
 		// starting time
 		runtime = wtime();
 
-		int mp = (np-2)/numprocs + 2;
+    printf("Number of rows per process: %d", mp-2);
+
 		// send to workers the necessary data to perform computation
-		for (int i=0; i<numprocs; i++) {
+		for (int i=1; i<numprocs; i++) {
 			if (i>0) {
+          printf("Sending rows %d to %d to worker %d\n", i * (mp-2), i * (mp-2) + mp, i);
+
 					MPI_Send(&param.maxiter, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
 					MPI_Send(&param.resolution, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-					MPI_Send(&param.algorithm, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-					if(i == numprocs-1){
-						printf("Sending rows %d to %d to worker %d\n", i * (mp-2), i * (mp-2) + (mp + (np-2)%numprocs), i);
-						MPI_Send(&param.u[i * (mp-2) * np], (mp + (np-2)%numprocs)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-						MPI_Send(&param.uhelp[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);						
-					}
-					else{
-						printf("Sending rows %d to %d to worker %d\n", i * (mp-2), i * (mp-2) + mp, i);
-						MPI_Send(&param.u[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-						MPI_Send(&param.uhelp[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-					}
-			}
+
+          if(i == numprocs-1) {
+  						printf("Sending rows %d to %d to worker %d\n", i * (mp-2), i * (mp-2) + (mp + (np-2)%numprocs), i);
+  						MPI_Send(&param.u[i * (mp-2) * np], (mp + (np-2)%numprocs)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+  						MPI_Send(&param.uhelp[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+  					} else {
+  						printf("Sending rows %d to %d to worker %d\n", i * (mp-2), i * (mp-2) + mp, i);
+  						MPI_Send(&param.u[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+  						MPI_Send(&param.uhelp[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+  				}
+		  }
 		}
 
 		iter = 0;
@@ -122,10 +134,10 @@ int main( int argc, char *argv[] )
 				for (int i=0; i<mp; i++)
 						for (int j=0; j<np; j++)
 						param.u[ i*np+j ] = param.uhelp[ i*np+j ];
-					
-				MPI_Sendrecv(&param.u[np*(mp-2)], np, MPI_DOUBLE, 1, 0,
-					&param.u[np*(mp-1)], np, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD, &status);
-					
+
+	      MPI_Sendrecv(&param.u[np*(mp-2)], np, MPI_DOUBLE, 1, 0,
+		         &param.u[np*(mp-1)], np, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD, &status);
+
 				break;
 			case 1: // RED-BLACK
 				residual = relax_redblack(param.u, np, np);
@@ -138,7 +150,7 @@ int main( int argc, char *argv[] )
 			iter++;
 
 			MPI_Allreduce(MPI_IN_PLACE, &residual, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-			
+
 			// solution good enough ?
 			if (residual < 0.00005) break;
 
@@ -146,15 +158,17 @@ int main( int argc, char *argv[] )
 			if (param.maxiter>0 && iter>=param.maxiter) break;
 		}
 
-		
-		
+    for(int i=1; i<numprocs; i++) {
+  			MPI_Recv(&param.u[((mp-2)*i)*np], (mp-2)*np, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
+  	}
+
 		// Flop count after iter iterations
 		flop = iter * 11.0 * param.resolution * param.resolution;
 		// stopping time
 		runtime = wtime() - runtime;
 
 		fprintf(stdout, "Time: %04.3f ", runtime);
-		fprintf(stdout, "(%3.3f GFlop => %6.2f MFlop/s)\n", 
+		fprintf(stdout, "(%3.3f GFlop => %6.2f MFlop/s)\n",
 			flop/1000000000.0,
 			flop/runtime/1000000);
 		fprintf(stdout, "Convergence to residual=%f: %d iterations\n", residual, iter);
@@ -162,9 +176,9 @@ int main( int argc, char *argv[] )
 		// for plot...
 		coarsen( param.u, np, np,
 			 param.uvis, param.visres+2, param.visres+2 );
-	  
-		write_image( resfile, param.uvis,  
-			 param.visres+2, 
+
+		write_image( resfile, param.uvis,
+			 param.visres+2,
 			 param.visres+2 );
 
 		finalize( &param );
@@ -194,17 +208,13 @@ int main( int argc, char *argv[] )
 		np = columns + 2;
 		int mp = (np-2)/numprocs + 2;
 
-		int last_process = myid != numprocs-1;
-		
-		
-		if (last_process)
-		{
-			mp = mp + (np-2)%numprocs;
-		}
+    int last_process = (myid == numprocs-1);
 
-		
-		
-		
+    if (last_process)
+  		{
+  			mp = mp + (np-2)%numprocs;
+  		}
+
 		// allocate memory for worker
 		double * u = calloc( sizeof(double),(mp)*(np) );
 		double * uhelp = calloc( sizeof(double),(mp)*(np) );
@@ -213,32 +223,30 @@ int main( int argc, char *argv[] )
 			fprintf(stderr, "Error: Cannot allocate memory\n");
 			return 0;
 		}
-		
+
 		// fill initial values for matrix with values received from master
-		MPI_Recv(u, (mp)*(np), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
-		MPI_Recv(uhelp, (mp)*(np), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
+		MPI_Recv(&u[0], (mp)*(np), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
+		MPI_Recv(&uhelp[0], (mp)*(np), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
 
 		iter = 0;
 		while(1) {
 		switch( algorithm ) {
 	    case 0: // JACOBI
-			residual = relax_jacobi(u, uhelp, mp, np);
-		    // Copy uhelp into u
-		    for (int i=0; i<mp; i++)
-    		        for (int j=0; j<np; j++)
-						u[ i*np+j ] = uhelp[ i*np+j ];
-			
-			if (last_process)
-			{
-				MPI_Send(&u[np*(mp-2)], np, MPI_DOUBLE, myid+1, 0, MPI_COMM_WORLD);
-			}
-			MPI_Recv(u, np, MPI_DOUBLE, myid-1, 0, MPI_COMM_WORLD, &status);
-			MPI_Send(&u[np], np, MPI_DOUBLE, myid-1, 0, MPI_COMM_WORLD);	
-			if (last_process)
-			{
-				MPI_Recv(&u[np*(mp-1)], np, MPI_DOUBLE, myid+1, 0, MPI_COMM_WORLD, &status);
-			}
-		    break;
+  			residual = relax_jacobi(u, uhelp, mp, np);
+  		    // Copy uhelp into u
+  		    for (int i=0; i<mp; i++)
+      		        for (int j=0; j<np; j++)
+  						u[ i*np+j ] = uhelp[ i*np+j ];
+
+  			if (!last_process) {
+  				MPI_Send(&u[np*(mp-2)], np, MPI_DOUBLE, myid+1, 0, MPI_COMM_WORLD);
+          MPI_Recv(&u[np*(mp-1)], np, MPI_DOUBLE, myid+1, 0, MPI_COMM_WORLD, &status);
+  			}
+
+        MPI_Send(&u[np], np, MPI_DOUBLE, myid-1, 0, MPI_COMM_WORLD);
+        MPI_Recv(&u[0], np, MPI_DOUBLE, myid-1, 0, MPI_COMM_WORLD, &status);
+
+  		    break;
 	    case 1: // RED-BLACK
 		    residual = relax_redblack(u, np, np);
 		    break;
@@ -249,14 +257,16 @@ int main( int argc, char *argv[] )
 
         iter++;
 
-		MPI_Allreduce(MPI_IN_PLACE, &residual, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-		
+		    MPI_Allreduce(MPI_IN_PLACE, &residual, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
         // solution good enough ?
         if (residual < 0.00005) break;
 
         // max. iteration reached ? (no limit with maxiter=0)
         if (maxiter>0 && iter>=maxiter) break;
 		}
+
+    MPI_Send(&u[np], (mp-2)*np, MPI_DOUBLE, 0, maxiter+1, MPI_COMM_WORLD);
 
 		if( u ) free(u); if( uhelp ) free(uhelp);
 
