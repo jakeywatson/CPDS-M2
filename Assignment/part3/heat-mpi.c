@@ -146,7 +146,9 @@ int main( int argc, char *argv[] )
 			if (param.maxiter>0 && iter>=param.maxiter) break;
 		}
 
-		
+		for(int i=1; i<numprocs; i++) {
+  			MPI_Recv(&param.u[((mp-2)*i)*np], (mp-2)*np, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
+		}
 		
 		// Flop count after iter iterations
 		flop = iter * 11.0 * param.resolution * param.resolution;
@@ -257,6 +259,8 @@ int main( int argc, char *argv[] )
         // max. iteration reached ? (no limit with maxiter=0)
         if (maxiter>0 && iter>=maxiter) break;
 		}
+		
+		MPI_Send(&u[np], (mp-2)*np, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
 
 		if( u ) free(u); if( uhelp ) free(uhelp);
 
