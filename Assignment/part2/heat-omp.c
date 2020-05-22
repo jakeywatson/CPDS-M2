@@ -89,6 +89,7 @@ int main( int argc, char *argv[] )
     runtime = wtime();
 
     iter = 0;
+	
     while(1) {
 	switch( param.algorithm ) {
 	    case 0: // JACOBI

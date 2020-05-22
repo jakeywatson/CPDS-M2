@@ -17,7 +17,7 @@ double relax_jacobi (double *u, double *utmp, unsigned sizex, unsigned sizey)
     nby = NB;
     by = sizey/nby;
 
-#pragma omp parallel for collapse(2) private(diff) reduction(+: sum)
+	#pragma omp parallel for collapse(2) private(diff) reduction(+: sum)
     for (int ii=0; ii<nbx; ii++)
         for (int jj=0; jj<nby; jj++)
             for (int i=1+ii*bx; i<=min((ii+1)*bx, sizex-2); i++)
@@ -47,7 +47,9 @@ double relax_redblack (double *u, unsigned sizex, unsigned sizey)
     nby = NB;
     by = sizey/nby;
     // Computing "Red" blocks
-#pragma omp parallel for collapse(2) private(diff,unew) reduction(+: sum)
+#pragma omp parallel
+{
+	#pragma omp for collapse(2) private(diff,unew) reduction(+: sum)
     for (int ii=0; ii<nbx; ii++) {
         for (int jj=ii%2; jj<nby; jj=jj+2)
             for (int i=1+ii*bx; i<=min((ii+1)*bx, sizex-2); i++)
@@ -63,7 +65,7 @@ double relax_redblack (double *u, unsigned sizex, unsigned sizey)
     }
 
     // Computing "Black" blocks
-#pragma omp parallel for collapse(2) private(diff,unew) reduction(+: sum)
+	#pragma omp for collapse(2) private(diff,unew) reduction(+: sum)
     for (int ii=0; ii<nbx; ii++) {
         for (int jj=(ii+1)%2; jj<nby; jj=jj+2)
             for (int i=1+ii*bx; i<=min((ii+1)*bx, sizex-2); i++)
@@ -77,6 +79,7 @@ double relax_redblack (double *u, unsigned sizex, unsigned sizey)
 	            u[i*sizey+j]=unew;
 	        }
     }
+}
 
     return sum;
 }
@@ -98,9 +101,9 @@ double relax_gauss (double *u, unsigned sizex, unsigned sizey)
 #pragma omp parallel
 #pragma omp single
     for (int ii=0; ii<nbx; ii++)
-        for (int jj=0; jj<nby; jj++)
+        for (int jj=0; jj<nby; jj++){
           // SYNC to check if previous block is computed
-#pragma omp task depend(in : block[ii-1][jj], block[ii][jj-1]) depend(out : block[ii][jj]) private(diff ,unew)
+			#pragma omp task depend(in : block[ii-1][jj], block[ii][jj-1]) depend(out : block[ii][jj]) private(diff ,unew)
 			{
 				double temp_sum = 0.0;
 				for (int i=1+ii*bx; i<=min((ii+1)*bx, sizex-2); i++)
@@ -113,8 +116,10 @@ double relax_gauss (double *u, unsigned sizex, unsigned sizey)
 					temp_sum += diff * diff;
 					u[i*sizey+j]=unew;
 					}
-				#pragma omp atomic update
+				#pragma omp atomic
 				sum += temp_sum;
+				
 			}
+		}
     return sum;
 }
