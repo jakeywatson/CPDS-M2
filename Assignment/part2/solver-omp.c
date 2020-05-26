@@ -96,30 +96,24 @@ double relax_gauss (double *u, unsigned sizex, unsigned sizey)
     bx = sizex/nbx;
     nby = NB;
     by = sizey/nby;
-	
+
 	int block[nbx][nby];
-#pragma omp parallel
-#pragma omp single
-    for (int ii=0; ii<nbx; ii++)
-        for (int jj=0; jj<nby; jj++){
-          // SYNC to check if previous block is computed
-			#pragma omp task depend(in : block[ii-1][jj], block[ii][jj-1]) depend(out : block[ii][jj]) private(diff ,unew)
-			{
-				double temp_sum = 0.0;
-				for (int i=1+ii*bx; i<=min((ii+1)*bx, sizex-2); i++)
-					for (int j=1+jj*by; j<=min((jj+1)*by, sizey-2); j++) {
-					unew= 0.25 * (    u[ i*sizey	+ (j-1) ]+  // left
-						  u[ i*sizey	+ (j+1) ]+  // right
-						  u[ (i-1)*sizey	+ j     ]+  // top
-						  u[ (i+1)*sizey	+ j     ]); // bottom
-					diff = unew - u[i*sizey+ j];
-					temp_sum += diff * diff;
-					u[i*sizey+j]=unew;
-					}
-				#pragma omp atomic
-				sum += temp_sum;
-				
-			}
+  #pragma omp parallel for reduction(+:sum) private(diff)
+  for (int ii=0; ii<nbx; ii++) {
+    for (int jj=0; jj<nby; jj++) {
+		    for (int i=1+ii*bx; i<=min((ii+1)*bx, sizex-2); i++){
+				    for (int j=1+jj*by; j<=min((jj+1)*by, sizey-2); j++) {
+  					       unew= 0.25 * (    u[ i*sizey	+ (j-1) ]+  // left
+  						                       u[ i*sizey	+ (j+1) ]+  // right
+  						                       u[ (i-1)*sizey	+ j ]+  // top
+  						                       u[ (i+1)*sizey	+ j ]); // bottom
+                  diff = unew - u[i*sizey+ j];
+			            sum += diff * diff;
+		              u[i*sizey+j]=unew;
+  					}
+			  }
 		}
-    return sum;
+  }
+
+  return sum;				
 }
