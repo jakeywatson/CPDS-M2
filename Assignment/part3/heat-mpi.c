@@ -13,18 +13,31 @@ void usage( char *s )
 	    "Usage: %s <input file> [result file]\n\n", s);
 }
 
+
+copysubmatrix(double * destiny,int destiny_r, int destiny_c , double * source, int source_r, int from_r, int from_c)
+{
+
+	for (int i = 0; i < destiny_r; i++) {
+		for (int j = 0; j < destiny_c; j++) {
+			destiny[i*destiny_r + j] = source[(from_c + i) * source_r + from_r + j];
+		}
+	}
+}
+
 int main( int argc, char *argv[] )
 {
     unsigned iter;
     FILE *infile, *resfile;
     char *resfilename;
     int myid, numprocs;
+	
     MPI_Status status;
-
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
+	double* uu[numprocs];
+	
     if (myid == 0) {
 		printf("I am the master (%d) and going to distribute work to %d additional workers ...\n", myid, numprocs-1);
 
@@ -112,6 +125,15 @@ int main( int argc, char *argv[] )
 					}
 			}
 		}
+		
+		if(param.algorithm == 2)
+		{
+			for (int b=0; b<numprocs; b++){
+				uu[b] = calloc( sizeof(double),(mp)*(mp) );
+				copysubmatrix(uu[b], mp, mp, param.u, np, b*(mp-2),0);
+			}
+		}
+		
 
 		iter = 0;
 		while(1) {
@@ -131,7 +153,18 @@ int main( int argc, char *argv[] )
 				residual = relax_redblack(param.u, np, np);
 				break;
 			case 2: // GAUSS
-				residual = relax_gauss(param.u, np, np);
+				residual=0;
+				for (int b=0; b<numprocs; b++){
+					residual += relax_gauss(uu[b], mp, mp);
+					for(int i=0;i<mp;i++){
+						if(b!=numprocs-1) uu[b+1][i*mp] = uu[b][mp*i+mp-2];
+						if(b!=0) uu[b-1][i*mp+mp-1] = uu[b][i*mp+1];
+					}
+					MPI_Send(&uu[b][mp*(mp-2)],mp, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD);
+				}
+				for (int b=0; b<numprocs; b++){
+					MPI_Recv(&uu[b][mp*(mp-1)], mp, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD, &status);
+				}
 				break;
 			}
 
@@ -146,8 +179,14 @@ int main( int argc, char *argv[] )
 			if (param.maxiter>0 && iter>=param.maxiter) break;
 		}
 
+		
+		if(param.algorithm == 2)
+			for(int i = 1;i<mp-1;i++)
+				for(int j = 1;j<np-1;j++)
+						param.u[i*np + j] = uu[(j-1)/(mp-2)][i*mp + (((j-1) % (mp-2))+1)];
+		
 		for(int i=1; i<numprocs; i++) {
-  			MPI_Recv(&param.u[((mp-2)*i)*np], (mp-2)*np, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
+  			MPI_Recv(&param.u[(mp-1 + (i-1) * (mp-2))*np], (mp-2)*np, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
 		}
 		
 		// Flop count after iter iterations
@@ -196,7 +235,7 @@ int main( int argc, char *argv[] )
 		np = columns + 2;
 		int mp = (np-2)/numprocs + 2;
 
-		int last_process = myid != numprocs-1;
+		int last_process = myid == numprocs-1;
 		
 		
 		if (last_process)
@@ -220,6 +259,17 @@ int main( int argc, char *argv[] )
 		MPI_Recv(u, (mp)*(np), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
 		MPI_Recv(uhelp, (mp)*(np), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
 
+		
+		
+		if(algorithm == 2)
+		{
+			for (int b=0; b<numprocs; b++){
+				uu[b] = calloc( sizeof(double),(mp)*(mp) );
+				copysubmatrix(uu[b], mp, mp, u, np, b*(mp-2),0);
+			}
+		}
+		
+		
 		iter = 0;
 		while(1) {
 		switch( algorithm ) {
@@ -230,22 +280,29 @@ int main( int argc, char *argv[] )
     		        for (int j=0; j<np; j++)
 						u[ i*np+j ] = uhelp[ i*np+j ];
 			
-			if (last_process)
-			{
-				MPI_Send(&u[np*(mp-2)], np, MPI_DOUBLE, myid+1, 0, MPI_COMM_WORLD);
-			}
+			if (!last_process) MPI_Send(&u[np*(mp-2)], np, MPI_DOUBLE, myid+1, 0, MPI_COMM_WORLD);
 			MPI_Recv(u, np, MPI_DOUBLE, myid-1, 0, MPI_COMM_WORLD, &status);
 			MPI_Send(&u[np], np, MPI_DOUBLE, myid-1, 0, MPI_COMM_WORLD);	
-			if (last_process)
-			{
-				MPI_Recv(&u[np*(mp-1)], np, MPI_DOUBLE, myid+1, 0, MPI_COMM_WORLD, &status);
-			}
+			if (!last_process) MPI_Recv(&u[np*(mp-1)], np, MPI_DOUBLE, myid+1, 0, MPI_COMM_WORLD, &status);
 		    break;
 	    case 1: // RED-BLACK
 		    residual = relax_redblack(u, np, np);
 		    break;
 	    case 2: // GAUSS
-		    residual = relax_gauss(u, np, np);
+			residual=0;
+			for (int b=0; b<numprocs; b++){
+				MPI_Recv(uu[b],mp, MPI_DOUBLE, myid-1, 0, MPI_COMM_WORLD, &status);
+				residual += relax_gauss(uu[b], mp, mp);
+				for(int i=0;i<mp;i++){
+					if(b!=numprocs-1) uu[b+1][i*mp] = uu[b][mp*i+mp-2];
+					if(b!=0) uu[b-1][i*mp+mp-1] = uu[b][i*mp+1];
+				}
+				if(!last_process) MPI_Send(&uu[b][mp*(mp-2)],mp, MPI_DOUBLE, myid+1, 0, MPI_COMM_WORLD);
+			}
+			for (int b=0; b<numprocs; b++){
+				MPI_Send(&uu[b][mp],mp, MPI_DOUBLE, myid-1, 0, MPI_COMM_WORLD);
+				if(!last_process) MPI_Recv(&uu[b][mp*(mp-1)], mp, MPI_DOUBLE, myid+1, 0, MPI_COMM_WORLD, &status);
+			}
 		    break;
 	    }
 
@@ -259,6 +316,11 @@ int main( int argc, char *argv[] )
         // max. iteration reached ? (no limit with maxiter=0)
         if (maxiter>0 && iter>=maxiter) break;
 		}
+		
+		if(algorithm == 2)
+			for(int i = 1;i<mp-1;i++)
+				for(int j = 1;j<np-1;j++)
+						u[i*np + j] = uu[(j-1)/(mp-2)][i*mp + (((j-1) % (mp-2))+1)];
 		
 		MPI_Send(&u[np], (mp-2)*np, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
 
