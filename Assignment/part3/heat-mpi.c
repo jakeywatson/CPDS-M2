@@ -183,10 +183,10 @@ int main( int argc, char *argv[] )
 		if(param.algorithm == 2)
 			for(int i = 1;i<mp-1;i++)
 				for(int j = 1;j<np-1;j++)
-						param.u[i*np + j] = uu[j/(mp-1)][i*mp + (j % (mp-1))];
+						param.u[i*np + j] = uu[(j-1)/(mp-2)][i*mp + (((j-1) % (mp-2))+1)];
 		
 		for(int i=1; i<numprocs; i++) {
-  			MPI_Recv(&param.u[((mp-2)*i)*np], (mp-2)*np, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
+  			MPI_Recv(&param.u[(mp-1 + (i-1) * (mp-2))*np], (mp-2)*np, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
 		}
 		
 		// Flop count after iter iterations
@@ -320,7 +320,7 @@ int main( int argc, char *argv[] )
 		if(algorithm == 2)
 			for(int i = 1;i<mp-1;i++)
 				for(int j = 1;j<np-1;j++)
-						u[i*np + j] = uu[j/(mp-1)][i*mp + (j % (mp-1))];
+						u[i*np + j] = uu[(j-1)/(mp-2)][i*mp + (((j-1) % (mp-2))+1)];
 		
 		MPI_Send(&u[np], (mp-2)*np, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
 
