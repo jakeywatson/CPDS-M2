@@ -212,15 +212,15 @@ int main( int argc, char *argv[] ) {
     cudaEventRecord( start, 0 );
     cudaEventSynchronize( start );
 
-    float *dev_u, *dev_uhelp, *dev_residual;
+    float *dev_u, *dev_uhelp, *dev_residuals;
 
-    // TODO: Allocation on GPU for matrices u and uhelp
+    // Allocation on GPU for matrices u and uhelp
     //...
     cudaMalloc(&dev_uhelp,np*np*sizeof(float));
     cudaMalloc(&dev_u,np*np*sizeof(float));
-    cudaMalloc(&dev_residual,sizeof(float));
+    cudaMalloc(&dev_residuals,np*np*sizeof(float));
 
-    // TODO: Copy initial values in u and uhelp from host to GPU
+    // Copy initial values in u and uhelp from host to GPU
     cudaMemcpy(dev_u,param.u,np*np*sizeof(float),cudaMemcpyHostToDevice);
     cudaMemcpy(dev_uhelp,param.uhelp,np*np*sizeof(float),cudaMemcpyHostToDevice);
 
@@ -230,16 +230,18 @@ int main( int argc, char *argv[] ) {
         cudaThreadSynchronize();                        // wait for all threads to complete
 
 #if defined(CPU_REDUCTION)
-        // TODO: residual is computed on host, we need to get from GPU values computed in u and uhelp
+        // Residual is computed on host, we need to get from GPU values computed in u and uhelp
         cudaMemcpy(param.u, dev_u, sizeof(float)*(np*np), cudaMemcpyDeviceToHost);
         cudaMemcpy(param.uhelp, dev_uhelp, sizeof(float)*(np*np), cudaMemcpyDeviceToHost);
 
       	residual = cpu_residual (param.u, param.uhelp, np, np);
 #else
-		gpu_residual<<<Grid,Block,np*np>>>(dev_residual,dev_u, dev_uhelp, np*np);
-        cudaMemcpy(&residual, dev_residual, sizeof(float), cudaMemcpyDeviceToHost);
+		gpu_residual<<<Grid,Block>>>(dev_residuals,dev_u, dev_uhelp, np*np);
+		cudaThreadSynchronize();
+        cudaMemcpy(&residual, dev_residuals, sizeof(float), cudaMemcpyDeviceToHost);
 #endif		
-		
+        //printf("Residual computation is ==> %f\n", residual);
+
       	float * tmp = dev_u;
       	dev_u = dev_uhelp;
       	dev_uhelp = tmp;
@@ -253,12 +255,13 @@ int main( int argc, char *argv[] ) {
         if (iter>=param.maxiter) break;
     }
 
-    // TODO: get result matrix from GPU
+    // Get result matrix from GPU
     //...
     cudaMemcpy(param.u, dev_u, sizeof(float)*(np*np), cudaMemcpyDeviceToHost);
 
-    // TODO: free memory used in GPU
+    // Free memory used in GPU
     //...
+    cudaFree(dev_residuals);
     cudaFree(dev_u);
     cudaFree(dev_uhelp);
 

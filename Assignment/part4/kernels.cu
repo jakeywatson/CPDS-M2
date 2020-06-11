@@ -18,26 +18,24 @@ __device__ void warpReduce(volatile float* sdata, int tid) {
 
 
 	// Slide 22 : http://developer.download.nvidia.com/assets/cuda/files/reduction.pdf
- __global__ void gpu_residual (float* residual, float *u, float* u_help, int Dim) {
- 	extern __shared__ float sdata[];
+ __global__ void gpu_residual (float* residuals, float *u, float* u_help, int Dim) {
 
 	int blockId = blockIdx.x + blockIdx.y * gridDim.x;
 	int i = blockId * (blockDim.x * blockDim.y) + (threadIdx.y * blockDim.x) + threadIdx.x;
 	
-	if(i>Dim) return;
-	
-	float diff = u_help[i] - u[i];
- 	sdata[i] = diff * diff; 
+	if(i<Dim){
+		float diff = u_help[i] - u[i];
+		residuals[i] = diff * diff; 
+	}
  	__syncthreads();
 
  	for(unsigned int s=Dim/2; s>0; s>>=1) {
- 		if (i > s) return;
- 		sdata[i] += sdata[i + s];
+ 		if (i < s)
+			residuals[i] += residuals[i + s];
  		__syncthreads();
  	}
 
- 	//if (i < 32) warpReduce(sdata, i);
- 	if (i == 0) residual[0] = sdata[0];
+ 	//if (i < 32) warpReduce(residuals, i);
 }
 
 
