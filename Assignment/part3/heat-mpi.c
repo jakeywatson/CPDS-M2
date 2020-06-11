@@ -108,21 +108,19 @@ int main( int argc, char *argv[] )
 
 		int mp = (np-2)/numprocs + 2;
 		// send to workers the necessary data to perform computation
-		for (int i=0; i<numprocs; i++) {
-			if (i>0) {
-					MPI_Send(&param.maxiter, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-					MPI_Send(&param.resolution, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-					MPI_Send(&param.algorithm, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-					if(i == numprocs-1){
-						printf("Sending rows %d to %d to worker %d\n", i * (mp-2), i * (mp-2) + (mp + (np-2)%numprocs), i);
-						MPI_Send(&param.u[i * (mp-2) * np], (mp + (np-2)%numprocs)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-						MPI_Send(&param.uhelp[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);						
-					}
-					else{
-						printf("Sending rows %d to %d to worker %d\n", i * (mp-2), i * (mp-2) + mp, i);
-						MPI_Send(&param.u[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-						MPI_Send(&param.uhelp[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-					}
+		for (int i=1; i<numprocs; i++) {
+			MPI_Send(&param.maxiter, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+			MPI_Send(&param.resolution, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+			MPI_Send(&param.algorithm, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+			if(i == numprocs-1){
+				printf("Sending rows %d to %d to worker %d\n", i * (mp-2), i * (mp-2) + (mp + (np-2)%numprocs), i);
+				MPI_Send(&param.u[i * (mp-2) * np], (mp + (np-2)%numprocs)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+				MPI_Send(&param.uhelp[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);						
+			}
+			else{
+				printf("Sending rows %d to %d to worker %d\n", i * (mp-2), i * (mp-2) + mp, i);
+				MPI_Send(&param.u[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+				MPI_Send(&param.uhelp[i * (mp-2) * np], (mp)*(np), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
 			}
 		}
 		

@@ -36,8 +36,13 @@ int coarsen(float *uold, unsigned oldx, unsigned oldy ,
 	    float *unew, unsigned newx, unsigned newy );
 
 
+<<<<<<< HEAD
 __global__ void gpu_Heat (float *h, float *g, float *res, int N);
 __global__ void gpu_residual (float* residuals, float *idata);
+=======
+__global__ void gpu_Heat (float *h, float *g, int N);
+__global__ void gpu_residual (float* residual, float *u, float* u_help, int Dim);
+>>>>>>> 1cd6ef9453848ffe1759409882b1c7faddfbcd77
 
 #define NB 8
 #define min(a,b) ( ((a) < (b)) ? (a) : (b) )

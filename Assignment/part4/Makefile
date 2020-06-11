@@ -10,9 +10,13 @@ all: $(ALL)
 kernels.o: kernels.cu 
 	$(NVCC) -c -g $(NVCCFLAGS) $+ $(LFLAGS) -o $@
 
-heatCUDA: heatCUDA.cu kernels.o
+heatCUDA: kernels.o heatCUDA.cu
 	$(NVCC) -g -O2 $(NVCCFLAGS) $+ $(LFLAGS) -o $@
 
+heatCUDAcpu:  kernels.o heatCUDA.cu
+	$(NVCC) -g -O2 $(NVCCFLAGS) $+ $(LFLAGS) -D CPU_REDUCTION -o $@
+
+	
 clean:
 	rm -fr $(ALL) *.o *.prv *.pcf *.row *.sym *.mpits set-0
 
