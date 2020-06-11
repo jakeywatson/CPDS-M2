@@ -1,42 +1,43 @@
 #include <math.h>
 #include <float.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <cuda.h>
+#include<cuda_runtime.h>
 
-__global__ void gpu_Heat (float *h, float *g, int N) {
 
-	// TODO: kernel computation
+ __global__ void gpu_residual (float *residuals, float* block_res) {
 
+	 extern __shared__ float sdata[];
+	 unsigned int tid = threadIdx.x;
+	 int i = (blockIdx.x * blockDim.x) + threadIdx.x;
+	 sdata[tid] = residuals[i];
+	 __syncthreads();
+
+	 for(unsigned int s=blockDim.x/2; s>0; s>>=1) {
+		 if (tid < s) {
+		 	sdata[tid] += sdata[tid + s];
+	 		__syncthreads();
+			}
+		}
+
+		if (tid == 0) {
+				block_res[blockIdx.x] = sdata[tid];
+		}
+}
+
+
+__global__ void gpu_Heat (float *h, float *g, float *residuals, int N) {
   // global thread IDs
   int i = (blockIdx.x * blockDim.x) + threadIdx.x;
   int j = (blockIdx.y * blockDim.y) + threadIdx.y;
 
-  // check if thread is responsible for first column/row
-  bool first_row = threadIdx.y + blockIdx.y == 0
-  bool first_col = threadIdx.x + blockIdx.x == 0
-
-  if (i < N-1 && j < N-1 && !first_row && !first_col) {
-    g[i*N+j]= 0.25 * (h[ i*N     + (j-1) ]+  // left
+  if (i>0 && j>0 && i < N-1 && j < N-1) {
+    g[i*N+j]= 0.25f * (h[ i*N     + (j-1) ]+  // left
 					            h[ i*N     + (j+1) ]+  // right
 				              h[ (i-1)*N + j     ]+  // top
 				              h[ (i+1)*N + j     ]); // bottom
+		float diff = g[(i*N)+j] - h[(i*N) + j];
+		residuals[(i*N)+j] = diff * diff;
   }
 }
-
-// // Slide 22 : http://developer.download.nvidia.com/assets/cuda/files/reduction.pdf
-// __global__ void gpu_reduction (float *g_idata, float *g_odata) {
-// 	extern __shared__ float sdata[];
-//
-// 	unsigned int tid = threadIdx.x;
-// 	unsigned int i = blockIdx.x*blockDim.x + threadIdx.x;
-// 	sdata[tid] = g_idata[i];
-// 	__syncthreads();
-//
-// 	for(unsigned int s=blockDim.x/2; s>32; s>>=1) {
-// 		if (tid < s)
-// 			sdata[tid] += sdata[tid + s];
-// 		__syncthreads();
-// 	}
-//
-// 	if (tid < 32) warpReduce(sdata, tid);
-// 	if (tid == 0) g_odata[blockIdx.x] = sdata[0];
-// }

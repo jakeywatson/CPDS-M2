@@ -36,7 +36,8 @@ int coarsen(float *uold, unsigned oldx, unsigned oldy ,
 	    float *unew, unsigned newx, unsigned newy );
 
 
-__global__ void gpu_Heat (float *h, float *g, int N);
+__global__ void gpu_Heat (float *h, float *g, float *res, int N);
+__global__ void gpu_residual (float* residuals, float *idata);
 
 #define NB 8
 #define min(a,b) ( ((a) < (b)) ? (a) : (b) )
@@ -211,28 +212,60 @@ int main( int argc, char *argv[] ) {
     cudaEventRecord( start, 0 );
     cudaEventSynchronize( start );
 
-    float *dev_u, *dev_uhelp;
+    float *dev_u, *dev_uhelp, *dev_residuals, *dev_block_res;
+    float *residuals = (float*)calloc(sizeof(float), np*np);
+    float *block_res = (float*)calloc(sizeof(float), np);
 
-    // TODO: Allocation on GPU for matrices u and uhelp
+    // Allocation on GPU for matrices u and uhelp
     //...
     cudaMalloc(&dev_uhelp,np*np*sizeof(float));
     cudaMalloc(&dev_u,np*np*sizeof(float));
+    cudaMalloc(&dev_residuals,np*np*sizeof(float));
+    cudaMalloc(&dev_block_res, np*sizeof(float));
 
-    // TODO: Copy initial values in u and uhelp from host to GPU
+    // Copy initial values in u and uhelp from host to GPU
     cudaMemcpy(dev_u,param.u,np*np*sizeof(float),cudaMemcpyHostToDevice);
     cudaMemcpy(dev_uhelp,param.uhelp,np*np*sizeof(float),cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_residuals, residuals,np*np*sizeof(float),cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_block_res,block_res,np*sizeof(float),cudaMemcpyHostToDevice);
 
     iter = 0;
     while(1) {
-        gpu_Heat<<<Grid,Block>>>(dev_u, dev_uhelp, np);
+        gpu_Heat<<<Grid,Block>>>(dev_u, dev_uhelp, dev_residuals, np);
         cudaThreadSynchronize();                        // wait for all threads to complete
 
-        // TODO: residual is computed on host, we need to get from GPU values computed in u and uhelp
-        cudaMemcpy(param.u, dev_u, sizeof(float)*(np*np), cudaMemcpyDeviceToHost);
-        cudaMemcpy(param.uhelp, dev_uhelp, sizeof(float)*(np*np), cudaMemcpyDeviceToHost);
+        #if defined(CPU_REDUCTION)
+          // Residual is computed on host, we need to get from GPU values computed in u and uhelp
+          cudaMemcpy(param.u, dev_u, sizeof(float)*(np*np), cudaMemcpyDeviceToHost);
+          cudaMemcpy(param.uhelp, dev_uhelp, sizeof(float)*(np*np), cudaMemcpyDeviceToHost);
+        	residual = cpu_residual (param.u, param.uhelp, np, np);
+        #else
+          // Residual is computed on GPU
+          // printf("Residual computation on GPU\n");
+//          cudaMemcpy(&residuals, dev_residuals, sizeof(float)*(np*np), cudaMemcpyDeviceToHost);
+      		gpu_residual<<<np,np,np*sizeof(float)>>>(dev_residuals, dev_block_res);
+      		cudaThreadSynchronize();
+          cudaMemcpy(block_res, dev_block_res, np*sizeof(float), cudaMemcpyDeviceToHost);
 
-      	residual = cpu_residual (param.u, param.uhelp, np, np);
-        printf("Residual computation on GPU is ==> %f\n", residual);
+          //
+          // float max = 0.0;
+          // for (int x = 0; x < np; x++){
+          //   for (int y = 0; y < np; y++){
+          //     if (block_res[x*np + y] > max){
+          //       max = block_res[x*np + y];
+          //     }
+          //   }
+          // }
+
+          // printf("%.6f\n", max);
+
+          residual = 0.0;
+        	for(int i=0;i<np;i++) {
+        			residual += block_res[i];
+        	}
+          // printf("Residual computation is ==> %f\n", residual);
+        #endif
+
 
       	float * tmp = dev_u;
       	dev_u = dev_uhelp;
@@ -247,12 +280,13 @@ int main( int argc, char *argv[] ) {
         if (iter>=param.maxiter) break;
     }
 
-    // TODO: get result matrix from GPU
+    // Get result matrix from GPU
     //...
     cudaMemcpy(param.u, dev_u, sizeof(float)*(np*np), cudaMemcpyDeviceToHost);
 
-    // TODO: free memory used in GPU
+    // Free memory used in GPU
     //...
+    cudaFree(dev_residuals);
     cudaFree(dev_u);
     cudaFree(dev_uhelp);
 
