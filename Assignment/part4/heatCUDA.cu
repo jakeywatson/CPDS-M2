@@ -271,7 +271,7 @@ int main( int argc, char *argv[] ) {
     // Free memory used in GPU
     //...
     cudaFree(dev_residuals);
-    cudaFree(dev_block_res)
+    cudaFree(dev_block_res);
     cudaFree(dev_u);
     cudaFree(dev_uhelp);
 
