@@ -36,13 +36,8 @@ int coarsen(float *uold, unsigned oldx, unsigned oldy ,
 	    float *unew, unsigned newx, unsigned newy );
 
 
-<<<<<<< HEAD
 __global__ void gpu_Heat (float *h, float *g, float *res, int N);
 __global__ void gpu_residual (float* residuals, float *idata);
-=======
-__global__ void gpu_Heat (float *h, float *g, int N);
-__global__ void gpu_residual (float* residual, float *u, float* u_help, int Dim);
->>>>>>> 1cd6ef9453848ffe1759409882b1c7faddfbcd77
 
 #define NB 8
 #define min(a,b) ( ((a) < (b)) ? (a) : (b) )
@@ -236,7 +231,8 @@ int main( int argc, char *argv[] ) {
 
     iter = 0;
     while(1) {
-        gpu_Heat<<<Grid,Block>>>(dev_u, dev_uhelp, dev_residuals, np);
+        //gpu_Heat<<<Grid,Block>>>(dev_u, dev_uhelp, dev_residuals, np);
+        gpu_Heat<<<Grid,Block>>>(dev_u, dev_uhelp, dev_block_res, np);
         cudaThreadSynchronize();                        // wait for all threads to complete
 
         #if defined(CPU_REDUCTION)
@@ -248,8 +244,8 @@ int main( int argc, char *argv[] ) {
           // Residual is computed on GPU
           // printf("Residual computation on GPU\n");
 //          cudaMemcpy(&residuals, dev_residuals, sizeof(float)*(np*np), cudaMemcpyDeviceToHost);
-      		gpu_residual<<<np,np,np*sizeof(float)>>>(dev_residuals, dev_block_res);
-      		cudaThreadSynchronize();
+      		// gpu_residual<<<np,np,np*sizeof(float)>>>(dev_residuals, dev_block_res);
+      		// cudaThreadSynchronize();
           cudaMemcpy(block_res, dev_block_res, np*sizeof(float), cudaMemcpyDeviceToHost);
 
           //
