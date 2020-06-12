@@ -231,8 +231,7 @@ int main( int argc, char *argv[] ) {
 
     iter = 0;
     while(1) {
-        //gpu_Heat<<<Grid,Block>>>(dev_u, dev_uhelp, dev_residuals, np);
-        gpu_Heat<<<Grid,Block>>>(dev_u, dev_uhelp, dev_block_res, np);
+        gpu_Heat<<<Grid,Block>>>(dev_u, dev_uhelp, dev_residuals, np);
         cudaThreadSynchronize();                        // wait for all threads to complete
 
         #if defined(CPU_REDUCTION)
@@ -242,31 +241,15 @@ int main( int argc, char *argv[] ) {
         	residual = cpu_residual (param.u, param.uhelp, np, np);
         #else
           // Residual is computed on GPU
-          // printf("Residual computation on GPU\n");
-//          cudaMemcpy(&residuals, dev_residuals, sizeof(float)*(np*np), cudaMemcpyDeviceToHost);
-      		// gpu_residual<<<np,np,np*sizeof(float)>>>(dev_residuals, dev_block_res);
-      		// cudaThreadSynchronize();
+      		gpu_residual<<<np,np,np*sizeof(float)>>>(dev_residuals, dev_block_res);
+      		cudaThreadSynchronize();
           cudaMemcpy(block_res, dev_block_res, np*sizeof(float), cudaMemcpyDeviceToHost);
-
-          //
-          // float max = 0.0;
-          // for (int x = 0; x < np; x++){
-          //   for (int y = 0; y < np; y++){
-          //     if (block_res[x*np + y] > max){
-          //       max = block_res[x*np + y];
-          //     }
-          //   }
-          // }
-
-          // printf("%.6f\n", max);
 
           residual = 0.0;
         	for(int i=0;i<np;i++) {
         			residual += block_res[i];
         	}
-          // printf("Residual computation is ==> %f\n", residual);
         #endif
-
 
       	float * tmp = dev_u;
       	dev_u = dev_uhelp;
@@ -288,6 +271,7 @@ int main( int argc, char *argv[] ) {
     // Free memory used in GPU
     //...
     cudaFree(dev_residuals);
+    cudaFree(dev_block_res)
     cudaFree(dev_u);
     cudaFree(dev_uhelp);
 
