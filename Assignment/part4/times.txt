@@ -1,0 +1,35 @@
+GPU solver w/ GPU reduction
+  Iterations        : 25000
+  Resolution        : 256
+  Num. Heat sources : 2
+     1: (0.00, 0.00) 1.00 2.50
+     2: (0.50, 1.00) 1.00 2.50
+
+  Execution on CPU (sequential)
+  -----------------------------
+  Time on CPU in ms.= 2957.373291 (11.464 GFlop => 3876.31 MFlop/s)
+  Convergence to residual=0.000050: 15902 iterations
+
+  Execution on GPU
+  ----------------
+
+  Time on GPU in ms. = 1411.478760 (11.464 GFlop => 8121.76 MFlop/s)
+  Convergence to residual=0.000050: 15852 iterations
+
+GPU solver w/ CPU reduction
+  Iterations        : 25000
+  Resolution        : 256
+  Num. Heat sources : 2
+     1: (0.00, 0.00) 1.00 2.50
+     2: (0.50, 1.00) 1.00 2.50
+
+  Execution on CPU (sequential)
+  -----------------------------
+  Time on CPU in ms.= 2954.502930 (11.464 GFlop => 3880.07 MFlop/s)
+  Convergence to residual=0.000050: 15902 iterations
+
+  Execution on GPU
+  ----------------
+
+  Time on GPU in ms. = 5070.074707 (11.464 GFlop => 2261.05 MFlop/s)
+  Convergence to residual=0.000050: 15902 iterations
